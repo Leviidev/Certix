@@ -39,7 +39,7 @@ class ZipService {
         for fileURL in contents {
             let relativePath = String(fileURL.path.dropFirst(directory.path.count + 1))
             let fileData = try Data(contentsOf: fileURL)
-            let crc = crc32ForData(data: fileData)
+            let crc = computeCRC32(data: fileData)
             let localOffset = UInt32(localHeaders.count)
 
             let nameData = relativePath.data(using: .utf8) ?? Data()
@@ -209,9 +209,9 @@ class ZipService {
         return nil
     }
 
-    private func crc32ForData(data: Data) -> UInt32 {
+    private func computeCRC32(data: Data) -> UInt32 {
         data.withUnsafeBytes { ptr in
-            __ObjC.crc32ForData(ptr.baseAddress?.assumingMemoryBound(to: UInt8.self), data.count)
+            crc32ForData(ptr.baseAddress?.assumingMemoryBound(to: UInt8.self), data.count)
         }
     }
 

@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UIKit
 
 struct SigningView: View {
     @EnvironmentObject var store: AppStore
@@ -9,19 +11,29 @@ struct SigningView: View {
     @State private var selectedCertID: UUID? = nil
     @State private var selectedIPAID: UUID? = nil
     @State private var isSigning = false
-    @State private var signingProgress: Double = 0
     @State private var errorMessage: String? = nil
     @State private var signedJob: SigningJob? = nil
+    @State private var currentJobID: UUID? = nil
+    @State private var showAdvanced = false
+    @State private var options = SigningOptions()
+    @State private var iconPickerItem: PhotosPickerItem? = nil
+    @State private var customIconPreview: UIImage? = nil
 
     var selectedCert: Certificate? { store.certificates.first(where: { $0.id == selectedCertID }) }
     var selectedIPA: IPAFile? { store.ipas.first(where: { $0.id == selectedIPAID }) }
     var canSign: Bool { selectedCertID != nil && selectedIPAID != nil && !isSigning }
+
+    var currentProgress: Double {
+        guard let id = currentJobID else { return 0 }
+        return store.signingJobs.first(where: { $0.id == id })?.progress ?? 0
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 certSection
                 ipaSection
+                customizationSection
 
                 if let error = errorMessage {
                     Section {
@@ -30,7 +42,11 @@ struct SigningView: View {
                     }
                 }
 
-                if isSigning { signingProgressSection }
+                if isSigning {
+                    signingProgressSection
+                    terminalSection
+                }
+
                 if !isSigning && canSign { signSection }
             }
             .navigationTitle("Sign App")
@@ -51,6 +67,14 @@ struct SigningView: View {
             InstallView(job: job).environmentObject(store)
         }
         .interactiveDismissDisabled(isSigning)
+        .onChange(of: iconPickerItem) { newItem in
+            Task {
+                if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                    options.customIconData = data
+                    customIconPreview = UIImage(data: data)
+                }
+            }
+        }
     }
 
     private var certSection: some View {
@@ -96,17 +120,94 @@ struct SigningView: View {
         }
     }
 
+    private var customizationSection: some View {
+        Section {
+            DisclosureGroup(isExpanded: $showAdvanced) {
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("Bundle ID")
+                            .font(.subheadline).foregroundStyle(.secondary).frame(width: 90, alignment: .leading)
+                        TextField("com.yourteam.appname", text: $options.customBundleID)
+                            .font(.subheadline)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                    }
+                    .padding(.vertical, 8)
+
+                    Divider()
+
+                    HStack {
+                        Text("App Name")
+                            .font(.subheadline).foregroundStyle(.secondary).frame(width: 90, alignment: .leading)
+                        TextField("Leave blank to keep original", text: $options.customAppName)
+                            .font(.subheadline)
+                    }
+                    .padding(.vertical, 8)
+
+                    Divider()
+
+                    HStack {
+                        Text("Version")
+                            .font(.subheadline).foregroundStyle(.secondary).frame(width: 90, alignment: .leading)
+                        TextField("e.g. 2.0.0", text: $options.customVersion)
+                            .font(.subheadline)
+                            .keyboardType(.numbersAndPunctuation)
+                    }
+                    .padding(.vertical, 8)
+
+                    Divider()
+
+                    HStack(spacing: 12) {
+                        Text("Icon")
+                            .font(.subheadline).foregroundStyle(.secondary).frame(width: 90, alignment: .leading)
+
+                        if let preview = customIconPreview {
+                            Image(uiImage: preview)
+                                .resizable().scaledToFill()
+                                .frame(width: 38, height: 38)
+                                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        }
+
+                        PhotosPicker(selection: $iconPickerItem, matching: .images) {
+                            Text(options.hasIconOverride ? "Change Icon" : "Pick Icon")
+                                .font(.subheadline).foregroundStyle(.blue)
+                        }
+
+                        if options.hasIconOverride {
+                            Spacer()
+                            Button("Remove") {
+                                options.customIconData = nil
+                                customIconPreview = nil
+                                iconPickerItem = nil
+                            }
+                            .font(.caption).foregroundStyle(.red)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+            } label: {
+                Label("Customization", systemImage: "slider.horizontal.3")
+                    .font(.subheadline.weight(.medium))
+            }
+        } header: {
+            Label("Options", systemImage: "gearshape")
+        } footer: {
+            Text("Leave fields blank to keep original values from the IPA.")
+                .font(.caption).foregroundStyle(.tertiary)
+        }
+    }
+
     private var signingProgressSection: some View {
         Section {
             VStack(spacing: 12) {
                 HStack {
-                    Text(signingProgressLabel).font(.subheadline).foregroundStyle(.secondary)
+                    Text(progressLabel).font(.subheadline).foregroundStyle(.secondary)
                     Spacer()
-                    Text("\(Int(signingProgress * 100))%")
+                    Text("\(Int(currentProgress * 100))%")
                         .font(.subheadline.weight(.semibold)).foregroundStyle(.blue).monospacedDigit()
                 }
-                ProgressView(value: signingProgress).tint(.blue)
-                    .animation(.easeInOut(duration: 0.3), value: signingProgress)
+                ProgressView(value: currentProgress).tint(.blue)
+                    .animation(.easeInOut(duration: 0.3), value: currentProgress)
             }
             .padding(.vertical, 4)
         } header: {
@@ -114,14 +215,33 @@ struct SigningView: View {
         }
     }
 
-    private var signingProgressLabel: String {
-        switch signingProgress {
-        case 0 ..< 0.1:   return "Loading certificate..."
-        case 0.1 ..< 0.25: return "Extracting IPA..."
-        case 0.25 ..< 0.45: return "Analyzing app bundle..."
-        case 0.45 ..< 0.9: return "Signing binary..."
-        case 0.9 ..< 1.0: return "Repackaging..."
-        default:           return "Complete"
+    private var terminalSection: some View {
+        Section {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        ForEach(Array(store.activeJobLogs.enumerated()), id: \.offset) { idx, line in
+                            Text(line)
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(terminalLineColor(for: line))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .id(idx)
+                        }
+                    }
+                    .padding(10)
+                }
+                .frame(height: 180)
+                .background(Color.black)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .onChange(of: store.activeJobLogs.count) { count in
+                    if let last = store.activeJobLogs.indices.last {
+                        withAnimation { proxy.scrollTo(last, anchor: .bottom) }
+                    }
+                }
+            }
+            .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+        } header: {
+            Label("Build Log", systemImage: "terminal.fill")
         }
     }
 
@@ -140,27 +260,46 @@ struct SigningView: View {
         }
     }
 
+    private var progressLabel: String {
+        switch currentProgress {
+        case 0 ..< 0.1:    return "Loading certificate..."
+        case 0.1 ..< 0.25: return "Extracting IPA..."
+        case 0.25 ..< 0.45: return "Analyzing app bundle..."
+        case 0.45 ..< 0.9: return "Signing binaries..."
+        case 0.9 ..< 1.0:  return "Repackaging..."
+        default:            return "Complete"
+        }
+    }
+
+    private func terminalLineColor(for line: String) -> Color {
+        if line.contains("✓") { return Color.green }
+        if line.contains("✗") || line.contains("Error") { return Color.red }
+        if line.contains("⚠") { return Color.yellow }
+        return Color.green.opacity(0.85)
+    }
+
     private func startSigning() {
         guard let certID = selectedCertID, let ipaID = selectedIPAID,
               let cert = selectedCert, let ipa = selectedIPA else { return }
 
         isSigning = true
         errorMessage = nil
-        signingProgress = 0
 
-        var job = SigningJob(
+        let job = SigningJob(
             ipaID: ipaID, certificateID: certID,
             ipaName: ipa.name, certificateName: cert.name,
             status: .queued, progress: 0, dateCreated: Date()
         )
+        currentJobID = job.id
         store.addSigningJob(job)
 
+        let capturedOptions = options
+
         Task {
-            await SigningService.shared.sign(job: job, store: store)
+            await SigningService.shared.sign(job: job, store: store, options: capturedOptions)
             await MainActor.run {
                 isSigning = false
                 if let updated = store.signingJobs.first(where: { $0.id == job.id }) {
-                    job = updated
                     if updated.status == .completed {
                         signedJob = updated
                         dismiss()
@@ -171,13 +310,6 @@ struct SigningView: View {
                         errorMessage = updated.errorMessage ?? "Signing failed"
                     }
                 }
-            }
-        }
-
-        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
-            if let updated = store.signingJobs.first(where: { $0.id == job.id }) {
-                signingProgress = updated.progress
-                if updated.status == .completed || updated.status == .failed { timer.invalidate() }
             }
         }
     }
@@ -193,7 +325,7 @@ struct CertPickerRow: View {
             HStack(spacing: 12) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? .blue : .tertiaryLabel)
+                    .foregroundStyle(isSelected ? .blue : Color(.tertiaryLabel))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(cert.name).font(.subheadline.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
                     Text(cert.teamName).font(.caption).foregroundStyle(.secondary)
@@ -217,7 +349,7 @@ struct IPAPickerRow: View {
             HStack(spacing: 12) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? .blue : .tertiaryLabel)
+                    .foregroundStyle(isSelected ? .blue : Color(.tertiaryLabel))
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color(.systemGray5)).frame(width: 34, height: 34)

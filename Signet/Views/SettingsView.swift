@@ -18,7 +18,7 @@ struct SettingsView: View {
                                 .font(.system(size: 22, weight: .semibold)).foregroundStyle(.white)
                         }
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Signet").font(.title3.weight(.bold))
+                            Text("Certix").font(.title3.weight(.bold))
                             Text("Version 1.0").font(.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -47,7 +47,7 @@ struct SettingsView: View {
 
                 Section {
                     Button { showGuide = true } label: {
-                        Label("How to Use Signet", systemImage: "questionmark.circle")
+                        Label("How to Use Certix", systemImage: "questionmark.circle")
                     }
                     Link(destination: URL(string: "https://github.com/your-repo/signet")!) {
                         Label("GitHub Repository", systemImage: "link")

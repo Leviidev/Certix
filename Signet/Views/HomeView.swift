@@ -1,16 +1,21 @@
 import SwiftUI
+import UIKit
 
 struct HomeView: View {
     @EnvironmentObject var store: AppStore
     @State private var showSigningSheet = false
     @State private var selectedJob: SigningJob? = nil
+    @State private var showAllSigned = false
+    @State private var shareURL: URL? = nil
+    @State private var showShareSheet = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     statsRow
-                    recentJobsSection
+                    signedAppsSection
+                    recentActivitySection
                     quickActionsSection
                 }
                 .padding(.horizontal, 20)
@@ -18,7 +23,7 @@ struct HomeView: View {
                 .padding(.bottom, 32)
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("Signet")
+            .navigationTitle("Certix")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -40,6 +45,11 @@ struct HomeView: View {
             InstallView(job: job)
                 .environmentObject(store)
         }
+        .sheet(isPresented: $showShareSheet) {
+            if let url = shareURL {
+                ShareSheet(activityItems: [url])
+            }
+        }
     }
 
     private var statsRow: some View {
@@ -53,26 +63,76 @@ struct HomeView: View {
         }
     }
 
-    private var recentJobsSection: some View {
+    private var signedAppsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                SectionHeader(title: "Signed Apps", icon: "checkmark.seal.fill")
+                Spacer()
+                if store.completedJobs.count > 3 {
+                    Button(showAllSigned ? "Show Less" : "See All") {
+                        withAnimation(.spring(response: 0.35)) { showAllSigned.toggle() }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.blue)
+                }
+            }
+
+            if store.completedJobs.isEmpty {
+                GlassCard {
+                    HStack {
+                        Image(systemName: "checkmark.seal").foregroundStyle(.tertiary)
+                        Text("No signed apps yet")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                }
+            } else {
+                let displayed = showAllSigned ? store.completedJobs : Array(store.completedJobs.prefix(3))
+                VStack(spacing: 0) {
+                    ForEach(displayed) { job in
+                        SignedAppRow(job: job) {
+                            selectedJob = job
+                        } onShare: {
+                            if let output = job.outputFileName {
+                                let url = store.signingDirectory.appendingPathComponent(output)
+                                shareURL = url
+                                showShareSheet = true
+                            }
+                        }
+                        if job.id != displayed.last?.id {
+                            Divider().padding(.leading, 68)
+                        }
+                    }
+                }
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(.separator.opacity(0.5), lineWidth: 0.5)
+                )
+            }
+        }
+    }
+
+    private var recentActivitySection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "Recent Activity", icon: "clock.fill")
 
-            if store.signingJobs.isEmpty {
+            let activeJobs = store.signingJobs.filter { $0.status == .signing || $0.status == .queued || $0.status == .failed }
+
+            if activeJobs.isEmpty {
                 GlassCard {
                     HStack {
                         Image(systemName: "tray").foregroundStyle(.tertiary)
-                        Text("No signing jobs yet")
+                        Text("No active jobs")
                             .font(.subheadline).foregroundStyle(.secondary)
                         Spacer()
                     }
                 }
             } else {
                 VStack(spacing: 0) {
-                    ForEach(store.recentJobs) { job in
-                        JobRow(job: job) {
-                            if job.status == .completed { selectedJob = job }
-                        }
-                        if job.id != store.recentJobs.last?.id {
+                    ForEach(activeJobs.prefix(5)) { job in
+                        JobRow(job: job) {}
+                        if job.id != activeJobs.prefix(5).last?.id {
                             Divider().padding(.horizontal, 16)
                         }
                     }
@@ -114,6 +174,61 @@ struct HomeView: View {
                     .strokeBorder(.separator.opacity(0.5), lineWidth: 0.5)
             )
         }
+    }
+}
+
+struct SignedAppRow: View {
+    let job: SigningJob
+    let onInstall: () -> Void
+    let onShare: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.green.opacity(0.12))
+                    .frame(width: 42, height: 42)
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(.green)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(job.ipaName)
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
+                Text(job.certificateName)
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if let date = job.dateCompleted {
+                    Text(date.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Button(action: onShare) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(7)
+                        .background(Color(.systemGray5), in: Circle())
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onInstall) {
+                    Text("Install")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.blue, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 
@@ -222,11 +337,21 @@ struct QuickActionRow: View {
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiaryLabel)
+                    .foregroundStyle(Color(.tertiaryLabel))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
         .buttonStyle(.plain)
     }
+}
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

@@ -81,7 +81,9 @@ class OTAServer: ObservableObject {
                 connection.cancel()
                 return
             }
-            self.handleRequest(request, on: connection, ipa: ipa)
+            Task { @MainActor [weak self] in
+                self?.handleRequest(request, on: connection, ipa: ipa)
+            }
         }
     }
 

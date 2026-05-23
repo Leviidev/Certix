@@ -4,6 +4,7 @@ import Security
 class CertificateService {
     static let shared = CertificateService()
 
+    @MainActor
     func importCertificate(
         p12URL: URL,
         password: String,
@@ -48,12 +49,14 @@ class CertificateService {
         return cert
     }
 
+    @MainActor
     func loadIdentity(for certificate: Certificate, store: AppStore) throws -> SecIdentity {
         let p12URL = store.certsDirectory.appendingPathComponent(certificate.p12FileName)
         let p12Data = try Data(contentsOf: p12URL)
         return try extractIdentity(from: p12Data, password: certificate.password)
     }
 
+    @MainActor
     func loadProfileData(for certificate: Certificate, store: AppStore) throws -> Data? {
         guard let profileFileName = certificate.profileFileName else { return nil }
         let profileURL = store.certsDirectory.appendingPathComponent(profileFileName)
@@ -68,11 +71,11 @@ class CertificateService {
         guard status == errSecSuccess,
               let itemArray = items as? [[String: Any]],
               let firstItem = itemArray.first,
-              let identity = firstItem[kSecImportItemIdentity as String] as? SecIdentity
+              let identityAny = firstItem[kSecImportItemIdentity as String]
         else {
             throw SignetError.invalidCertificate("Failed to import P12. Check password.")
         }
-        return identity
+        return identityAny as! SecIdentity
     }
 
     private func extractCertificateInfo(from identity: SecIdentity) throws -> (
@@ -86,43 +89,96 @@ class CertificateService {
         }
 
         let name = SecCertificateCopySubjectSummary(cert) as String? ?? "Unknown"
+        let (teamName, teamID) = extractTeamInfo(from: name)
 
-        guard let _ = SecCertificateCopyData(cert) as Data?,
-              let certDict = SecCertificateCopyValues(cert, nil, nil) as? [String: Any]
-        else {
-            return (name: name, teamName: "Unknown", teamID: "Unknown",
-                    serialNumber: "Unknown", expiryDate: Date(), creationDate: Date())
-        }
-
-        var teamName = "Unknown"
-        var teamID = "Unknown"
-        let expiryDate = Date().addingTimeInterval(365 * 24 * 3600)
-        let creationDate = Date()
         var serialNumber = "Unknown"
-
-        if let serialObj = certDict[kSecOIDSerialNumber as String] as? [String: Any],
-           let serial = serialObj["value"] as? String {
-            serialNumber = serial
+        if let serialData = SecCertificateCopySerialNumberData(cert, nil) as Data? {
+            serialNumber = serialData.map { String(format: "%02X", $0) }.joined(separator: ":")
         }
 
-        let subjectDict = SecCertificateCopyValues(cert, [kSecOIDX509V1SubjectName as AnyObject] as CFArray, nil) as? [String: Any]
-        if let subjectArray = (subjectDict?[kSecOIDX509V1SubjectName as String] as? [String: Any])?["value"] as? [[String: Any]] {
-            for item in subjectArray {
-                if let label = item["label"] as? String, let val = item["value"] as? String {
-                    if label == (kSecOIDOrganizationalUnitName as String) { teamID = val }
-                    if label == (kSecOIDOrganizationName as String) { teamName = val }
+        let certData = SecCertificateCopyData(cert) as Data
+        let dates = Self.parseValidityDates(from: certData)
+        let expiryDate   = dates?.notAfter  ?? Date().addingTimeInterval(365 * 24 * 3600)
+        let creationDate = dates?.notBefore ?? Date()
+
+        return (name: name, teamName: teamName, teamID: teamID,
+                serialNumber: serialNumber, expiryDate: expiryDate, creationDate: creationDate)
+    }
+
+    private func extractTeamInfo(from subjectSummary: String) -> (teamName: String, teamID: String) {
+        var teamID = "Unknown"
+        var teamName = "Unknown"
+
+        if let parenStart = subjectSummary.lastIndex(of: "("),
+           let parenEnd = subjectSummary.lastIndex(of: ")"),
+           parenStart < parenEnd {
+            let idStart = subjectSummary.index(after: parenStart)
+            teamID = String(subjectSummary[idStart..<parenEnd])
+
+            if let colonRange = subjectSummary.range(of: ": ") {
+                let nameStart = colonRange.upperBound
+                let nameEnd   = parenStart == subjectSummary.startIndex
+                    ? parenStart
+                    : subjectSummary.index(before: parenStart)
+                if nameStart <= nameEnd {
+                    teamName = String(subjectSummary[nameStart...nameEnd])
+                        .trimmingCharacters(in: .whitespaces)
                 }
             }
+        } else if let colonRange = subjectSummary.range(of: ": ") {
+            teamName = String(subjectSummary[colonRange.upperBound...])
         }
 
-        return (
-            name: name,
-            teamName: teamName,
-            teamID: teamID,
-            serialNumber: serialNumber,
-            expiryDate: expiryDate,
-            creationDate: creationDate
-        )
+        return (teamName, teamID)
+    }
+
+    private static func parseValidityDates(from certData: Data) -> (notBefore: Date, notAfter: Date)? {
+        let bytes = [UInt8](certData)
+        var pos = 0
+
+        func readByte() -> UInt8? {
+            guard pos < bytes.count else { return nil }
+            let b = bytes[pos]; pos += 1; return b
+        }
+        func readLen() -> Int? {
+            guard let b = readByte() else { return nil }
+            if b & 0x80 == 0 { return Int(b) }
+            let n = Int(b & 0x7F)
+            guard n > 0, n <= 4 else { return nil }
+            var l = 0
+            for _ in 0..<n {
+                guard let b2 = readByte() else { return nil }
+                l = (l << 8) | Int(b2)
+            }
+            return l
+        }
+        func skipValue() {
+            guard readByte() != nil, let l = readLen() else { return }
+            pos += min(l, bytes.count - pos)
+        }
+
+        guard readByte() == 0x30, readLen() != nil else { return nil }
+        guard readByte() == 0x30, readLen() != nil else { return nil }
+        if pos < bytes.count && bytes[pos] == 0xA0 { skipValue() }
+        skipValue()
+        skipValue()
+        skipValue()
+        guard readByte() == 0x30, readLen() != nil else { return nil }
+
+        func readTime() -> Date? {
+            guard let tag = readByte(), let len = readLen(), pos + len <= bytes.count else { return nil }
+            let s = String(bytes: bytes[pos..<pos+len], encoding: .ascii) ?? ""
+            pos += len
+            let df = DateFormatter()
+            df.locale = TimeZone(identifier: "UTC").map { _ in Locale(identifier: "en_US_POSIX") }
+                ?? Locale(identifier: "en_US_POSIX")
+            df.timeZone = TimeZone(identifier: "UTC")
+            df.dateFormat = (tag == 0x17) ? "yyMMddHHmmss'Z'" : "yyyyMMddHHmmss'Z'"
+            return df.date(from: s)
+        }
+
+        guard let notBefore = readTime(), let notAfter = readTime() else { return nil }
+        return (notBefore, notAfter)
     }
 }
 

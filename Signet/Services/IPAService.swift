@@ -4,6 +4,7 @@ import UIKit
 class IPAService {
     static let shared = IPAService()
 
+    @MainActor
     func importIPA(from sourceURL: URL, store: AppStore) async throws -> IPAFile {
         let accessing = sourceURL.startAccessingSecurityScopedResource()
         defer { if accessing { sourceURL.stopAccessingSecurityScopedResource() } }

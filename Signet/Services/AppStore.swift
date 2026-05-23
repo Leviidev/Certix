@@ -14,10 +14,11 @@ class AppStore: ObservableObject {
     @Published var activeInstallJob: SigningJob?
     @Published var serverURL: String = ""
     @Published var isServerRunning = false
+    @Published var activeJobLogs: [String] = []
 
-    private let certsKey = "signet_certificates"
-    private let ipasKey = "signet_ipas"
-    private let jobsKey = "signet_jobs"
+    private let certsKey = "certix_certificates"
+    private let ipasKey = "certix_ipas"
+    private let jobsKey = "certix_jobs"
 
     var documentsURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -108,6 +109,17 @@ class AppStore: ObservableObject {
             try? FileManager.default.removeItem(at: signingDirectory.appendingPathComponent(outputFile))
         }
         save()
+    }
+
+    func appendJobLog(_ line: String) {
+        let df = DateFormatter()
+        df.dateFormat = "HH:mm:ss"
+        let ts = df.string(from: Date())
+        activeJobLogs.append("[\(ts)] \(line)")
+    }
+
+    func clearJobLogs() {
+        activeJobLogs.removeAll()
     }
 
     var recentJobs: [SigningJob] {
