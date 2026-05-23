@@ -61,7 +61,7 @@ struct CertificatesView: View {
             Button("Delete", role: .destructive) { store.removeCertificate(cert) }
             Button("Cancel", role: .cancel) {}
         } message: { cert in
-            Text(""\(cert.name)" will be permanently removed.")
+            Text("\"\(cert.name)\" will be permanently removed.")
         }
     }
 }
