@@ -211,7 +211,7 @@ class ZipService {
 
     private func crc32ForData(data: Data) -> UInt32 {
         data.withUnsafeBytes { ptr in
-            crc32ForData(ptr.baseAddress?.assumingMemoryBound(to: UInt8.self), data.count)
+            __ObjC.crc32ForData(ptr.baseAddress?.assumingMemoryBound(to: UInt8.self), data.count)
         }
     }
 
@@ -231,7 +231,10 @@ class ZipService {
         let cal = Calendar.current
         let comps = cal.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
         let year = max(0, (comps.year ?? 1980) - 1980)
-        let time = UInt16(((comps.hour ?? 0) << 11) | ((comps.minute ?? 0) << 5) | ((comps.second ?? 0) / 2))
+        let hour = comps.hour ?? 0
+        let minute = comps.minute ?? 0
+        let second = (comps.second ?? 0) / 2
+        let time = UInt16((hour << 11) | (minute << 5) | second)
         let d    = UInt16((year << 9) | ((comps.month ?? 1) << 5) | (comps.day ?? 1))
         return DosDateTime(time: time, date: d)
     }

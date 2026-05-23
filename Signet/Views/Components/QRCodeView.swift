@@ -24,7 +24,7 @@ struct QRCodeView: View {
             }
         }
         .onAppear { qrImage = generateQR(from: url) }
-        .onChange(of: url) { _, newURL in qrImage = generateQR(from: newURL) }
+        .onChange(of: url) { newURL in qrImage = generateQR(from: newURL) }
     }
 
     private func generateQR(from string: String) -> UIImage? {

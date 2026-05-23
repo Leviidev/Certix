@@ -30,7 +30,9 @@ class OTAServer: ObservableObject {
         listener = try NWListener(using: params, on: nwPort)
 
         listener?.newConnectionHandler = { [weak self] connection in
-            self?.handleConnection(connection, ipa: ipa)
+            Task { @MainActor [weak self] in
+                self?.handleConnection(connection, ipa: ipa)
+            }
         }
 
         listener?.stateUpdateHandler = { [weak self] state in

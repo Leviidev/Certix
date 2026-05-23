@@ -36,6 +36,7 @@ class SigningService {
         }
     }
 
+    @MainActor
     private func performSigning(
         job: SigningJob,
         store: AppStore,

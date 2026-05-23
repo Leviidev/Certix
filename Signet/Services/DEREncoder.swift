@@ -156,33 +156,22 @@ struct CMSBuilder {
     }
 
     private static func buildIssuerAndSerial(from certData: Data) -> Data {
-        guard let cert = SecCertificateCreateWithData(nil, certData as CFData),
-              let vals = SecCertificateCopyValues(cert, nil, nil) as? [String: Any] else {
+        guard let cert = SecCertificateCreateWithData(nil, certData as CFData) else {
             return DER.sequence(DER.sequence(Data()) + DER.integer(Data([0x01])))
         }
 
-        var issuerData = Data()
-        if let subjectArray = (vals[kSecOIDX509V1SubjectName as String] as? [String: Any])?["value"] as? [[String: Any]] {
-            for item in subjectArray {
-                if let label = item["label"] as? String, let val = item["value"] as? String {
-                    let oidData: Data
-                    switch label {
-                    case kSecOIDCommonName as String:           oidData = OID.commonName
-                    case kSecOIDOrganizationName as String:     oidData = OID.organizationName
-                    case kSecOIDOrganizationalUnitName as String: oidData = OID.organizationalUnit
-                    case kSecOIDCountryName as String:          oidData = OID.countryName
-                    default: continue
-                    }
-                    issuerData.append(DER.set(DER.sequence(oidData + DER.utf8String(val))))
-                }
-            }
+        let issuerData: Data
+        if let issuerSeq = SecCertificateCopyNormalizedIssuerSequence(cert) as Data? {
+            issuerData = issuerSeq
+        } else {
+            issuerData = DER.sequence(Data())
         }
 
         var serial = Data([0x01])
-        if let serialVal = (vals[kSecOIDSerialNumber as String] as? [String: Any])?["value"] as? Data {
-            serial = serialVal
+        if let serialData = SecCertificateCopySerialNumberData(cert, nil) as Data? {
+            serial = serialData
         }
 
-        return DER.sequence(DER.sequence(issuerData) + DER.integer(serial))
+        return DER.sequence(issuerData + DER.integer(serial))
     }
 }
