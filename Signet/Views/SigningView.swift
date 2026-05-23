@@ -67,12 +67,11 @@ struct SigningView: View {
             InstallView(job: job).environmentObject(store)
         }
         .interactiveDismissDisabled(isSigning)
-        .onChange(of: iconPickerItem) { newItem in
-            Task {
-                if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                    options.customIconData = data
-                    customIconPreview = UIImage(data: data)
-                }
+        .task(id: iconPickerItem) {
+            guard let item = iconPickerItem else { return }
+            if let data = try? await item.loadTransferable(type: Data.self) {
+                options.customIconData = data
+                customIconPreview = UIImage(data: data)
             }
         }
     }

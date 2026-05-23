@@ -107,7 +107,7 @@ struct HomeView: View {
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(.separator.opacity(0.5), lineWidth: 0.5)
+                        .strokeBorder(Color(.separator).opacity(0.5), lineWidth: 0.5)
                 )
             }
         }
@@ -140,7 +140,7 @@ struct HomeView: View {
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(.separator.opacity(0.5), lineWidth: 0.5)
+                        .strokeBorder(Color(.separator).opacity(0.5), lineWidth: 0.5)
                 )
             }
         }
@@ -171,7 +171,7 @@ struct HomeView: View {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(.separator.opacity(0.5), lineWidth: 0.5)
+                    .strokeBorder(Color(.separator).opacity(0.5), lineWidth: 0.5)
             )
         }
     }

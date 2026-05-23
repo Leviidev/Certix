@@ -143,7 +143,7 @@ struct IPARow: View {
             }
             Spacer()
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold)).foregroundStyle(.tertiaryLabel)
+                .font(.caption.weight(.semibold)).foregroundStyle(Color(.tertiaryLabel))
         }
         .padding(.vertical, 4)
         .onAppear { icon = IPAService.shared.loadIcon(for: ipa) }

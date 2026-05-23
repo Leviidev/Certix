@@ -13,6 +13,7 @@ F20300000000000000000000 /* Certificate.swift in Sources */ = {isa = PBXBuildFil
 F20400000000000000000000 /* ProvisioningProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10400000000000000000000 /* ProvisioningProfile.swift */; };
 F20500000000000000000000 /* IPAFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10500000000000000000000 /* IPAFile.swift */; };
 F20600000000000000000000 /* SigningJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10600000000000000000000 /* SigningJob.swift */; };
+F21E00000000000000000000 /* SigningOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11E00000000000000000000 /* SigningOptions.swift */; };
 F20700000000000000000000 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10700000000000000000000 /* HomeView.swift */; };
 F20800000000000000000000 /* CertificatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10800000000000000000000 /* CertificatesView.swift */; };
 F20900000000000000000000 /* IPAsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10900000000000000000000 /* IPAsView.swift */; };
@@ -43,6 +44,7 @@ F10300000000000000000000 /* Certificate.swift */ = {isa = PBXFileReference; last
 F10400000000000000000000 /* ProvisioningProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvisioningProfile.swift; sourceTree = "<group>"; };
 F10500000000000000000000 /* IPAFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPAFile.swift; sourceTree = "<group>"; };
 F10600000000000000000000 /* SigningJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningJob.swift; sourceTree = "<group>"; };
+F11E00000000000000000000 /* SigningOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningOptions.swift; sourceTree = "<group>"; };
 F10700000000000000000000 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 F10800000000000000000000 /* CertificatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificatesView.swift; sourceTree = "<group>"; };
 F10900000000000000000000 /* IPAsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPAsView.swift; sourceTree = "<group>"; };
@@ -119,6 +121,7 @@ F10300000000000000000000 /* Certificate.swift */,
 F10400000000000000000000 /* ProvisioningProfile.swift */,
 F10500000000000000000000 /* IPAFile.swift */,
 F10600000000000000000000 /* SigningJob.swift */,
+F11E00000000000000000000 /* SigningOptions.swift */,
 );
 path = Models;
 sourceTree = "<group>";
@@ -238,6 +241,7 @@ F20300000000000000000000 /* Certificate.swift in Sources */,
 F20400000000000000000000 /* ProvisioningProfile.swift in Sources */,
 F20500000000000000000000 /* IPAFile.swift in Sources */,
 F20600000000000000000000 /* SigningJob.swift in Sources */,
+F21E00000000000000000000 /* SigningOptions.swift in Sources */,
 F20700000000000000000000 /* HomeView.swift in Sources */,
 F20800000000000000000000 /* CertificatesView.swift in Sources */,
 F20900000000000000000000 /* IPAsView.swift in Sources */,
