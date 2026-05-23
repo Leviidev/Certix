@@ -13,17 +13,9 @@ struct SigningView: View {
     @State private var errorMessage: String? = nil
     @State private var signedJob: SigningJob? = nil
 
-    var selectedCert: Certificate? {
-        store.certificates.first(where: { $0.id == selectedCertID })
-    }
-
-    var selectedIPA: IPAFile? {
-        store.ipas.first(where: { $0.id == selectedIPAID })
-    }
-
-    var canSign: Bool {
-        selectedCertID != nil && selectedIPAID != nil && !isSigning
-    }
+    var selectedCert: Certificate? { store.certificates.first(where: { $0.id == selectedCertID }) }
+    var selectedIPA: IPAFile? { store.ipas.first(where: { $0.id == selectedIPAID }) }
+    var canSign: Bool { selectedCertID != nil && selectedIPAID != nil && !isSigning }
 
     var body: some View {
         NavigationStack {
@@ -34,39 +26,29 @@ struct SigningView: View {
                 if let error = errorMessage {
                     Section {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                            .foregroundStyle(.red).font(.caption)
                     }
                 }
 
-                if isSigning {
-                    signingProgressSection
-                }
-
-                if !isSigning && canSign {
-                    signSection
-                }
+                if isSigning { signingProgressSection }
+                if !isSigning && canSign { signSection }
             }
             .navigationTitle("Sign App")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .disabled(isSigning)
+                    Button("Cancel") { dismiss() }.disabled(isSigning)
                 }
             }
             .onAppear {
-                if let pre = preselectedIPA {
-                    selectedIPAID = pre.id
-                }
+                if let pre = preselectedIPA { selectedIPAID = pre.id }
                 if selectedCertID == nil, let first = store.certificates.first(where: { !$0.isExpired }) {
                     selectedCertID = first.id
                 }
             }
         }
         .sheet(item: $signedJob) { job in
-            InstallView(job: job)
-                .environmentObject(store)
+            InstallView(job: job).environmentObject(store)
         }
         .interactiveDismissDisabled(isSigning)
     }
@@ -75,8 +57,7 @@ struct SigningView: View {
         Section {
             if store.certificates.isEmpty {
                 Label("No certificates imported", systemImage: "exclamationmark.circle")
-                    .foregroundStyle(.orange)
-                    .font(.subheadline)
+                    .foregroundStyle(.orange).font(.subheadline)
             } else {
                 ForEach(store.certificates) { cert in
                     CertPickerRow(cert: cert, isSelected: cert.id == selectedCertID) {
@@ -98,8 +79,7 @@ struct SigningView: View {
         Section {
             if store.ipas.isEmpty {
                 Label("No apps imported", systemImage: "exclamationmark.circle")
-                    .foregroundStyle(.orange)
-                    .font(.subheadline)
+                    .foregroundStyle(.orange).font(.subheadline)
             } else {
                 ForEach(store.ipas) { ipa in
                     IPAPickerRow(ipa: ipa, isSelected: ipa.id == selectedIPAID) {
@@ -111,8 +91,7 @@ struct SigningView: View {
             Label("App", systemImage: "square.stack.3d.up.fill")
         } footer: {
             if let ipa = selectedIPA {
-                Text("\(ipa.bundleID) · \(ipa.fileSizeFormatted)")
-                    .foregroundStyle(.secondary)
+                Text("\(ipa.bundleID) · \(ipa.fileSizeFormatted)").foregroundStyle(.secondary)
             }
         }
     }
@@ -121,18 +100,12 @@ struct SigningView: View {
         Section {
             VStack(spacing: 12) {
                 HStack {
-                    Text(signingProgressLabel)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Text(signingProgressLabel).font(.subheadline).foregroundStyle(.secondary)
                     Spacer()
                     Text("\(Int(signingProgress * 100))%")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.blue)
-                        .monospacedDigit()
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(.blue).monospacedDigit()
                 }
-
-                ProgressView(value: signingProgress)
-                    .tint(.blue)
+                ProgressView(value: signingProgress).tint(.blue)
                     .animation(.easeInOut(duration: 0.3), value: signingProgress)
             }
             .padding(.vertical, 4)
@@ -143,7 +116,7 @@ struct SigningView: View {
 
     private var signingProgressLabel: String {
         switch signingProgress {
-        case 0 ..< 0.1:  return "Loading certificate..."
+        case 0 ..< 0.1:   return "Loading certificate..."
         case 0.1 ..< 0.25: return "Extracting IPA..."
         case 0.25 ..< 0.45: return "Analyzing app bundle..."
         case 0.45 ..< 0.9: return "Signing binary..."
@@ -154,13 +127,10 @@ struct SigningView: View {
 
     private var signSection: some View {
         Section {
-            Button {
-                startSigning()
-            } label: {
+            Button { startSigning() } label: {
                 HStack {
                     Spacer()
-                    Label("Sign App", systemImage: "signature")
-                        .font(.headline)
+                    Label("Sign App", systemImage: "signature").font(.headline)
                     Spacer()
                 }
             }
@@ -171,29 +141,22 @@ struct SigningView: View {
     }
 
     private func startSigning() {
-        guard let certID = selectedCertID,
-              let ipaID = selectedIPAID,
-              let cert = selectedCert,
-              let ipa = selectedIPA else { return }
+        guard let certID = selectedCertID, let ipaID = selectedIPAID,
+              let cert = selectedCert, let ipa = selectedIPA else { return }
 
         isSigning = true
         errorMessage = nil
         signingProgress = 0
 
         var job = SigningJob(
-            ipaID: ipaID,
-            certificateID: certID,
-            ipaName: ipa.name,
-            certificateName: cert.name,
-            status: .queued,
-            progress: 0,
-            dateCreated: Date()
+            ipaID: ipaID, certificateID: certID,
+            ipaName: ipa.name, certificateName: cert.name,
+            status: .queued, progress: 0, dateCreated: Date()
         )
         store.addSigningJob(job)
 
         Task {
             await SigningService.shared.sign(job: job, store: store)
-
             await MainActor.run {
                 isSigning = false
                 if let updated = store.signingJobs.first(where: { $0.id == job.id }) {
@@ -214,9 +177,7 @@ struct SigningView: View {
         Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
             if let updated = store.signingJobs.first(where: { $0.id == job.id }) {
                 signingProgress = updated.progress
-                if updated.status == .completed || updated.status == .failed {
-                    timer.invalidate()
-                }
+                if updated.status == .completed || updated.status == .failed { timer.invalidate() }
             }
         }
     }
@@ -233,19 +194,11 @@ struct CertPickerRow: View {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
                     .foregroundStyle(isSelected ? .blue : .tertiaryLabel)
-
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(cert.name)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Text(cert.teamName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(cert.name).font(.subheadline.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
+                    Text(cert.teamName).font(.caption).foregroundStyle(.secondary)
                 }
-
                 Spacer()
-
                 CertExpiryBadge(cert: cert)
             }
         }
@@ -265,34 +218,22 @@ struct IPAPickerRow: View {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
                     .foregroundStyle(isSelected ? .blue : .tertiaryLabel)
-
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color(.systemGray5))
-                        .frame(width: 34, height: 34)
+                        .fill(Color(.systemGray5)).frame(width: 34, height: 34)
                     if let icon {
-                        Image(uiImage: icon)
-                            .resizable()
-                            .scaledToFill()
+                        Image(uiImage: icon).resizable().scaledToFill()
                             .frame(width: 34, height: 34)
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     } else {
                         Image(systemName: "app.fill")
-                            .font(.system(size: 16, weight: .light))
-                            .foregroundStyle(.quaternary)
+                            .font(.system(size: 16, weight: .light)).foregroundStyle(.quaternary)
                     }
                 }
-
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(ipa.name)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Text("v\(ipa.version) · \(ipa.fileSizeFormatted)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(ipa.name).font(.subheadline.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
+                    Text("v\(ipa.version) · \(ipa.fileSizeFormatted)").font(.caption).foregroundStyle(.secondary)
                 }
-
                 Spacer()
             }
         }

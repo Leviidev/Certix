@@ -60,15 +60,12 @@ class IPAService {
         let buildNumber = plist["CFBundleVersion"] as? String ?? "1"
         let minimumOSVersion = plist["MinimumOSVersion"] as? String ?? "16.0"
 
-        var iconFileName: String? = nil
-        if let iconFile = extractIcon(from: appBundle, plist: plist, store: nil) {
-            iconFileName = iconFile
-        }
+        let iconFileName = extractIcon(from: appBundle, plist: plist)
 
         return (name, bundleID, version, buildNumber, minimumOSVersion, iconFileName)
     }
 
-    private func extractIcon(from appBundle: URL, plist: [String: Any], store: AppStore?) -> String? {
+    private func extractIcon(from appBundle: URL, plist: [String: Any]) -> String? {
         var iconNames: [String] = []
 
         if let icons = plist["CFBundleIcons"] as? [String: Any],

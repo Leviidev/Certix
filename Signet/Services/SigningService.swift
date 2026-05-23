@@ -74,12 +74,13 @@ class SigningService {
 
         let infoPlistURL = appBundle.appendingPathComponent("Info.plist")
         guard let plistData = FileManager.default.contents(atPath: infoPlistURL.path),
-              var plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any]
+              let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any]
         else {
             throw SignetError.invalidIPA("Cannot read Info.plist")
         }
 
-        let bundleID = certificate.teamID + "." + (plist["CFBundleIdentifier"] as? String ?? "app").split(separator: ".").last!
+        let origBundleID = plist["CFBundleIdentifier"] as? String ?? "app"
+        let bundleID = certificate.teamID + "." + (origBundleID.split(separator: ".").last.map(String.init) ?? origBundleID)
 
         progressCallback(0.35)
 
@@ -91,15 +92,13 @@ class SigningService {
         progressCallback(0.45)
 
         let entitlements = buildEntitlements(for: certificate, bundleID: bundleID, profileData: profileData)
-        let entitlementsData = try PropertyListSerialization.data(fromPropertyList: entitlements,
-                                                                   format: .xml, options: 0)
+        let entitlementsData = try PropertyListSerialization.data(fromPropertyList: entitlements, format: .xml, options: 0)
 
-        let binariesDir = appBundle.appendingPathComponent("Frameworks")
         var binariesToSign: [URL] = []
 
+        let binariesDir = appBundle.appendingPathComponent("Frameworks")
         if FileManager.default.fileExists(atPath: binariesDir.path) {
-            let frameworks = try FileManager.default.contentsOfDirectory(at: binariesDir,
-                                                                          includingPropertiesForKeys: nil)
+            let frameworks = try FileManager.default.contentsOfDirectory(at: binariesDir, includingPropertiesForKeys: nil)
             for framework in frameworks where framework.pathExtension == "framework" {
                 let fwName = framework.deletingPathExtension().lastPathComponent
                 let fwBinary = framework.appendingPathComponent(fwName)
@@ -110,13 +109,10 @@ class SigningService {
         }
 
         let mainBinaryName = plist["CFBundleExecutable"] as? String ?? appBundle.deletingPathExtension().lastPathComponent
-        let mainBinary = appBundle.appendingPathComponent(mainBinaryName)
-        binariesToSign.append(mainBinary)
+        binariesToSign.append(appBundle.appendingPathComponent(mainBinaryName))
 
         for (index, binary) in binariesToSign.enumerated() {
-            let progress = 0.45 + 0.40 * (Double(index) / Double(binariesToSign.count))
-            progressCallback(progress)
-
+            progressCallback(0.45 + 0.40 * (Double(index) / Double(binariesToSign.count)))
             try MachOSigner.shared.sign(
                 binaryURL: binary,
                 identity: identity,
@@ -145,10 +141,8 @@ class SigningService {
 
         if let profileData = profileData,
            let profile = ProvisioningProfile.parse(from: profileData) {
-            for (key, val) in profile.entitlements {
-                if key != "application-identifier" {
-                    entitlements[key] = val
-                }
+            for (key, val) in profile.entitlements where key != "application-identifier" {
+                entitlements[key] = val
             }
         }
 

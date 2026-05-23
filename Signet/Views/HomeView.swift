@@ -44,24 +44,12 @@ struct HomeView: View {
 
     private var statsRow: some View {
         HStack(spacing: 12) {
-            StatCard(
-                value: "\(store.certificates.count)",
-                label: "Certificates",
-                icon: "lock.shield.fill",
-                color: .blue
-            )
-            StatCard(
-                value: "\(store.ipas.count)",
-                label: "Apps",
-                icon: "square.stack.3d.up.fill",
-                color: .purple
-            )
-            StatCard(
-                value: "\(store.completedJobs.count)",
-                label: "Signed",
-                icon: "checkmark.seal.fill",
-                color: .green
-            )
+            StatCard(value: "\(store.certificates.count)", label: "Certificates",
+                     icon: "lock.shield.fill", color: .blue)
+            StatCard(value: "\(store.ipas.count)", label: "Apps",
+                     icon: "square.stack.3d.up.fill", color: .purple)
+            StatCard(value: "\(store.completedJobs.count)", label: "Signed",
+                     icon: "checkmark.seal.fill", color: .green)
         }
     }
 
@@ -72,11 +60,9 @@ struct HomeView: View {
             if store.signingJobs.isEmpty {
                 GlassCard {
                     HStack {
-                        Image(systemName: "tray")
-                            .foregroundStyle(.tertiary)
+                        Image(systemName: "tray").foregroundStyle(.tertiary)
                         Text("No signing jobs yet")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.subheadline).foregroundStyle(.secondary)
                         Spacer()
                     }
                 }
@@ -84,9 +70,7 @@ struct HomeView: View {
                 VStack(spacing: 0) {
                     ForEach(store.recentJobs) { job in
                         JobRow(job: job) {
-                            if job.status == .completed {
-                                selectedJob = job
-                            }
+                            if job.status == .completed { selectedJob = job }
                         }
                         if job.id != store.recentJobs.last?.id {
                             Divider().padding(.horizontal, 16)
@@ -107,39 +91,22 @@ struct HomeView: View {
             SectionHeader(title: "Quick Actions", icon: "bolt.fill")
 
             VStack(spacing: 0) {
-                QuickActionRow(
-                    icon: "signature",
-                    iconColor: .blue,
-                    title: "Sign an App",
-                    subtitle: store.certificates.isEmpty ? "Import a certificate first" : "Sign an IPA with a certificate"
-                ) {
+                QuickActionRow(icon: "signature", iconColor: .blue,
+                               title: "Sign an App",
+                               subtitle: store.certificates.isEmpty ? "Import a certificate first" : "Sign an IPA with a certificate") {
                     showSigningSheet = true
                 }
                 .disabled(store.certificates.isEmpty || store.ipas.isEmpty)
 
                 Divider().padding(.horizontal, 16)
 
-                NavigationLink(value: "certificates") {
-                    QuickActionRow(
-                        icon: "plus.circle.fill",
-                        iconColor: .green,
-                        title: "Add Certificate",
-                        subtitle: "Import a .p12 file"
-                    ) {}
-                }
-                .buttonStyle(.plain)
+                QuickActionRow(icon: "plus.circle.fill", iconColor: .green,
+                               title: "Add Certificate", subtitle: "Import a .p12 file") {}
 
                 Divider().padding(.horizontal, 16)
 
-                NavigationLink(value: "apps") {
-                    QuickActionRow(
-                        icon: "square.and.arrow.down.fill",
-                        iconColor: .purple,
-                        title: "Import IPA",
-                        subtitle: "Add an app to sign"
-                    ) {}
-                }
-                .buttonStyle(.plain)
+                QuickActionRow(icon: "square.and.arrow.down.fill", iconColor: .purple,
+                               title: "Import IPA", subtitle: "Add an app to sign") {}
             }
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
@@ -162,14 +129,9 @@ struct StatCard: View {
                 Image(systemName: icon)
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(color)
-
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(value)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.primary)
-                    Text(label)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(value).font(.title2.weight(.bold)).foregroundStyle(.primary)
+                    Text(label).font(.caption).foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -204,26 +166,17 @@ struct JobRow: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(statusColor)
                 }
-
                 VStack(alignment: .leading, spacing: 2) {
                     Text(job.ipaName)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
+                        .font(.subheadline.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
                     Text(job.certificateName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
-
                 Spacer()
-
                 VStack(alignment: .trailing, spacing: 4) {
                     StatusBadge.forJob(job.status)
                     if job.status == .signing {
-                        ProgressView(value: job.progress)
-                            .frame(width: 60)
-                            .tint(.blue)
+                        ProgressView(value: job.progress).frame(width: 60).tint(.blue)
                     }
                 }
             }
@@ -262,18 +215,11 @@ struct QuickActionRow: View {
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.white)
                 }
-
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(title).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
                 }
-
                 Spacer()
-
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiaryLabel)

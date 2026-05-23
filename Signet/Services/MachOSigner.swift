@@ -9,8 +9,6 @@ class MachOSigner {
     private let pageSize: Int = 4096
     private let pageShift: UInt8 = 12
 
-    // MARK: - Public Interface
-
     func sign(
         binaryURL: URL,
         identity: SecIdentity,
@@ -32,8 +30,6 @@ class MachOSigner {
 
         try data.write(to: binaryURL)
     }
-
-    // MARK: - Fat Binary
 
     private func isFatBinary(data: Data) -> Bool {
         guard data.count >= 4 else { return false }
@@ -77,8 +73,6 @@ class MachOSigner {
         return result
     }
 
-    // MARK: - Mach-O Signing
-
     private func signMachO(
         data: Data,
         identity: SecIdentity,
@@ -98,34 +92,30 @@ class MachOSigner {
             : (is64 ? Int(data.readUInt32BE(at: 16)) : Int(data.readUInt32BE(at: 12)))
 
         var lcOffset = headerSize
-        var csSLCOffset    = -1
-        var csDataOffset   = 0
-        var csDataSize     = 0
+        var csSLCOffset  = -1
+        var csDataOffset = 0
+        var csDataSize   = 0
 
         for _ in 0 ..< ncmds {
-            let cmd     = isLE ? data.readUInt32LE(at: lcOffset)     : data.readUInt32BE(at: lcOffset)
+            let cmd     = isLE ? data.readUInt32LE(at: lcOffset) : data.readUInt32BE(at: lcOffset)
             let cmdSize = isLE ? Int(data.readUInt32LE(at: lcOffset + 4)) : Int(data.readUInt32BE(at: lcOffset + 4))
 
             if cmd == 0x1D {
                 csSLCOffset  = lcOffset
-                csDataOffset = isLE ? Int(data.readUInt32LE(at: lcOffset + 8)) : Int(data.readUInt32BE(at: lcOffset + 8))
+                csDataOffset = isLE ? Int(data.readUInt32LE(at: lcOffset + 8))  : Int(data.readUInt32BE(at: lcOffset + 8))
                 csDataSize   = isLE ? Int(data.readUInt32LE(at: lcOffset + 12)) : Int(data.readUInt32BE(at: lcOffset + 12))
             }
             lcOffset += cmdSize
         }
 
         guard csSLCOffset >= 0 else {
-            throw SignetError.signingFailed("No LC_CODE_SIGNATURE found. Binary must have a pre-allocated signature slot.")
+            throw SignetError.signingFailed("No LC_CODE_SIGNATURE found.")
         }
 
-        let codeLimit = csDataOffset
         let newSig = try buildCodeSignature(
-            data: data,
-            codeLimit: codeLimit,
-            bundleID: bundleID,
-            teamID: teamID,
-            identity: identity,
-            entitlements: entitlements
+            data: data, codeLimit: csDataOffset,
+            bundleID: bundleID, teamID: teamID,
+            identity: identity, entitlements: entitlements
         )
 
         var result = data
@@ -140,18 +130,12 @@ class MachOSigner {
             }
         }
 
-        let newSizeBytes = withUnsafeBytes(of: UInt32(newSig.count).littleEndian) { Data($0) }
-        if isLE {
-            result.replaceSubrange(csSLCOffset + 12 ..< csSLCOffset + 16, with: newSizeBytes)
-        } else {
-            let bigBytes = withUnsafeBytes(of: UInt32(newSig.count).bigEndian) { Data($0) }
-            result.replaceSubrange(csSLCOffset + 12 ..< csSLCOffset + 16, with: bigBytes)
-        }
+        let newSizeLE = withUnsafeBytes(of: UInt32(newSig.count).littleEndian) { Data($0) }
+        let newSizeBE = withUnsafeBytes(of: UInt32(newSig.count).bigEndian) { Data($0) }
+        result.replaceSubrange(csSLCOffset + 12 ..< csSLCOffset + 16, with: isLE ? newSizeLE : newSizeBE)
 
         return result
     }
-
-    // MARK: - Code Signature Builder
 
     private func buildCodeSignature(
         data: Data,
@@ -161,15 +145,14 @@ class MachOSigner {
         identity: SecIdentity,
         entitlements: Data?
     ) throws -> Data {
-
-        let requirements      = buildRequirementsBlob()
-        let entitlementsBlob  = entitlements.map { buildEntitlementsBlob($0) }
-        let codeDirectory     = buildCodeDirectory(
+        let requirements     = buildRequirementsBlob()
+        let entitlementsBlob = entitlements.map { buildEntitlementsBlob($0) }
+        let codeDirectory    = buildCodeDirectory(
             data: data, codeLimit: codeLimit,
             bundleID: bundleID, teamID: teamID,
             requirements: requirements, entitlements: entitlementsBlob
         )
-        let cms    = try CMSBuilder.buildSignedData(codeDirectory: codeDirectory, identity: identity)
+        let cms     = try CMSBuilder.buildSignedData(codeDirectory: codeDirectory, identity: identity)
         let cmsBlob = buildBlobWrapper(cms)
 
         var blobs: [(type: UInt32, data: Data)] = [
@@ -181,8 +164,6 @@ class MachOSigner {
 
         return buildSuperBlob(blobs: blobs)
     }
-
-    // MARK: - CodeDirectory
 
     private func buildCodeDirectory(
         data: Data,
@@ -197,7 +178,6 @@ class MachOSigner {
         let hashSize   = 32
         let nSpecial   = 5
         let pageCount  = (codeLimit + pageSize - 1) / pageSize
-        let version: UInt32 = 0x20400
 
         let fixedHdrSize = 88
         let identOff = UInt32(fixedHdrSize)
@@ -206,25 +186,25 @@ class MachOSigner {
 
         var cd = Data()
         cd.appendUInt32BE(0xFADE0C02)
-        cd.appendUInt32BE(0)               // length (filled below)
-        cd.appendUInt32BE(version)
-        cd.appendUInt32BE(0)               // flags
+        cd.appendUInt32BE(0)
+        cd.appendUInt32BE(0x20400)
+        cd.appendUInt32BE(0)
         cd.appendUInt32BE(hashOff)
         cd.appendUInt32BE(identOff)
         cd.appendUInt32BE(UInt32(nSpecial))
         cd.appendUInt32BE(UInt32(pageCount))
         cd.appendUInt32BE(UInt32(codeLimit))
         cd.append(UInt8(hashSize))
-        cd.append(UInt8(2))                // hashType: SHA-256
-        cd.append(UInt8(0))                // platform
+        cd.append(UInt8(2))
+        cd.append(UInt8(0))
         cd.append(pageShift)
-        cd.appendUInt32BE(0)               // spare2
-        cd.appendUInt32BE(0)               // scatterOffset
+        cd.appendUInt32BE(0)
+        cd.appendUInt32BE(0)
         cd.appendUInt32BE(teamOff)
-        cd.appendUInt32BE(0)               // spare3
-        cd.appendUInt32BE(0); cd.appendUInt32BE(0)  // codeLimit64
-        cd.appendUInt32BE(0); cd.appendUInt32BE(0)  // execSegBase
-        cd.appendUInt32BE(0); cd.appendUInt32BE(0)  // execSegLimit / Flags
+        cd.appendUInt32BE(0)
+        cd.appendUInt32BE(0); cd.appendUInt32BE(0)
+        cd.appendUInt32BE(0); cd.appendUInt32BE(0)
+        cd.appendUInt32BE(0); cd.appendUInt32BE(0)
 
         cd.append(identBytes)
         cd.append(teamBytes)
@@ -233,29 +213,21 @@ class MachOSigner {
         let reqHash   = Data(SHA256.hash(data: requirements))
         let entHash   = entitlements.map { Data(SHA256.hash(data: $0)) } ?? emptyHash
 
-        // Special slots (negative indices, stored in reverse: -5 first)
-        cd.append(emptyHash)   // slot -5: DER entitlements
-        cd.append(emptyHash)   // slot -4: (unused)
-        cd.append(emptyHash)   // slot -3: resource dir
-        cd.append(reqHash)     // slot -2: requirements
-        cd.append(entHash)     // slot -1: entitlements
+        cd.append(emptyHash)
+        cd.append(emptyHash)
+        cd.append(emptyHash)
+        cd.append(reqHash)
+        cd.append(entHash)
 
-        // Code slots
         for i in 0 ..< pageCount {
             let start = i * pageSize
             let end   = min(start + pageSize, codeLimit)
-            let page  = data.subdata(in: start ..< end)
-            cd.append(Data(SHA256.hash(data: page)))
+            cd.append(Data(SHA256.hash(data: data.subdata(in: start ..< end))))
         }
 
-        withUnsafeBytes(of: UInt32(cd.count).bigEndian) { bytes in
-            cd.replaceSubrange(4 ..< 8, with: bytes)
-        }
-
+        withUnsafeBytes(of: UInt32(cd.count).bigEndian) { cd.replaceSubrange(4 ..< 8, with: $0) }
         return cd
     }
-
-    // MARK: - Blob Builders
 
     private func buildRequirementsBlob() -> Data {
         var b = Data()
@@ -300,12 +272,9 @@ class MachOSigner {
             result.appendUInt32BE(offsets[i])
         }
         for blob in blobs { result.append(blob.data) }
-
         return result
     }
 }
-
-// MARK: - Data Extensions for Mach-O
 
 extension Data {
     func readUInt32BE(at offset: Int) -> UInt32 {
@@ -314,24 +283,6 @@ extension Data {
             var val: UInt32 = 0
             memcpy(&val, ptr.baseAddress!.advanced(by: offset), 4)
             return UInt32(bigEndian: val)
-        }
-    }
-
-    func readUInt64LE(at offset: Int) -> UInt64 {
-        guard offset + 8 <= count else { return 0 }
-        return withUnsafeBytes { ptr in
-            var val: UInt64 = 0
-            memcpy(&val, ptr.baseAddress!.advanced(by: offset), 8)
-            return UInt64(littleEndian: val)
-        }
-    }
-
-    func readUInt64BE(at offset: Int) -> UInt64 {
-        guard offset + 8 <= count else { return 0 }
-        return withUnsafeBytes { ptr in
-            var val: UInt64 = 0
-            memcpy(&val, ptr.baseAddress!.advanced(by: offset), 8)
-            return UInt64(bigEndian: val)
         }
     }
 

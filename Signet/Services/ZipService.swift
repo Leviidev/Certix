@@ -3,8 +3,6 @@ import Foundation
 class ZipService {
     static let shared = ZipService()
 
-    // MARK: - Unzip
-
     func unzip(sourceURL: URL, destinationURL: URL) throws {
         let data = try Data(contentsOf: sourceURL)
         let entries = try parseZipEntries(data: data)
@@ -31,8 +29,6 @@ class ZipService {
         }
     }
 
-    // MARK: - Zip
-
     func zip(directory: URL, outputURL: URL) throws {
         var localHeaders = Data()
         var centralDirectory = Data()
@@ -47,11 +43,10 @@ class ZipService {
             let localOffset = UInt32(localHeaders.count)
 
             let nameData = relativePath.data(using: .utf8) ?? Data()
-            let now = Date()
-            let dosTime = dosDateTime(from: now)
+            let dosTime = dosDateTime(from: Date())
 
-            var compressed = Data(count: fileData.count + 1024)
-            var compressedSize = compressed.count
+            var compressedSize = fileData.count + 1024
+            var compressed = Data(count: compressedSize)
 
             let didCompress = fileData.withUnsafeBytes { inPtr in
                 compressed.withUnsafeMutableBytes { outPtr in
@@ -73,7 +68,6 @@ class ZipService {
                 finalData = fileData
             }
 
-            // Local file header
             var localHeader = Data()
             localHeader.appendUInt32LE(0x04034B50)
             localHeader.appendUInt16LE(20)
@@ -90,7 +84,6 @@ class ZipService {
             localHeaders.append(localHeader)
             localHeaders.append(finalData)
 
-            // Central directory entry
             var cd = Data()
             cd.appendUInt32LE(0x02014B50)
             cd.appendUInt16LE(0x0317)
@@ -130,8 +123,6 @@ class ZipService {
         output.append(eocd)
         try output.write(to: outputURL)
     }
-
-    // MARK: - Private
 
     private struct ZipEntry {
         let name: String
@@ -246,8 +237,6 @@ class ZipService {
     }
 }
 
-// MARK: - Data Extensions
-
 extension Data {
     func readUInt32LE(at offset: Int) -> UInt32 {
         guard offset + 4 <= count else { return 0 }
@@ -274,16 +263,6 @@ extension Data {
 
     mutating func appendUInt16LE(_ val: UInt16) {
         var v = val.littleEndian
-        append(Data(bytes: &v, count: 2))
-    }
-
-    mutating func appendUInt32BE(_ val: UInt32) {
-        var v = val.bigEndian
-        append(Data(bytes: &v, count: 4))
-    }
-
-    mutating func appendUInt16BE(_ val: UInt16) {
-        var v = val.bigEndian
         append(Data(bytes: &v, count: 2))
     }
 }

@@ -69,7 +69,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild archive \
-            -project Signet/Signet.xcodeproj \
+            -project Signet.xcodeproj \
             -scheme Signet \
             -configuration Release \
             -destination "generic/platform=iOS" \
@@ -146,8 +146,8 @@ jobs:
             brew install swiftlint 2>/dev/null || true
           fi
           swiftlint lint \
-            --path Signet/Signet \
+            --path Signet \
             --reporter github-actions-logging \
             --config .swiftlint.yml 2>/dev/null \
-          || swiftlint lint --path Signet/Signet --reporter github-actions-logging \
+          || swiftlint lint --path Signet --reporter github-actions-logging \
           || true

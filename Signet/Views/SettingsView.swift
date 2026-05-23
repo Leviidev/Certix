@@ -13,18 +13,13 @@ struct SettingsView: View {
                     HStack(spacing: 14) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.blue)
-                                .frame(width: 50, height: 50)
+                                .fill(Color.blue).frame(width: 50, height: 50)
                             Image(systemName: "signature")
-                                .font(.system(size: 22, weight: .semibold))
-                                .foregroundStyle(.white)
+                                .font(.system(size: 22, weight: .semibold)).foregroundStyle(.white)
                         }
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Signet")
-                                .font(.title3.weight(.bold))
-                            Text("Version 1.0")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Text("Signet").font(.title3.weight(.bold))
+                            Text("Version 1.0").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
@@ -40,39 +35,27 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                             .frame(width: 70)
                     }
-                } header: {
-                    Text("Local Server")
-                } footer: {
-                    Text("Port used for OTA installation server. Default: 8080")
-                }
+                } header: { Text("Local Server") }
+                  footer: { Text("Port used for OTA installation server. Default: 8080") }
 
                 Section {
                     StatsRow(label: "Certificates", value: "\(store.certificates.count)", icon: "lock.shield.fill", color: .blue)
                     StatsRow(label: "Apps", value: "\(store.ipas.count)", icon: "square.stack.3d.up.fill", color: .purple)
                     StatsRow(label: "Signed Jobs", value: "\(store.signingJobs.count)", icon: "checkmark.seal.fill", color: .green)
                     StatsRow(label: "Successful", value: "\(store.completedJobs.count)", icon: "star.fill", color: .yellow)
-                } header: {
-                    Text("Statistics")
-                }
+                } header: { Text("Statistics") }
 
                 Section {
-                    Button {
-                        showGuide = true
-                    } label: {
+                    Button { showGuide = true } label: {
                         Label("How to Use Signet", systemImage: "questionmark.circle")
                     }
-
                     Link(destination: URL(string: "https://github.com/your-repo/signet")!) {
                         Label("GitHub Repository", systemImage: "link")
                     }
-                } header: {
-                    Text("About")
-                }
+                } header: { Text("About") }
 
                 Section {
-                    Button(role: .destructive) {
-                        showClearAlert = true
-                    } label: {
+                    Button(role: .destructive) { showClearAlert = true } label: {
                         Label("Clear All Data", systemImage: "trash")
                     }
                 } footer: {
@@ -83,16 +66,12 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.large)
         }
         .alert("Clear All Data?", isPresented: $showClearAlert) {
-            Button("Clear Everything", role: .destructive) {
-                clearAll()
-            }
+            Button("Clear Everything", role: .destructive) { clearAll() }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will permanently delete all certificates, imported apps, and signing history.")
         }
-        .sheet(isPresented: $showGuide) {
-            HowToUseGuide()
-        }
+        .sheet(isPresented: $showGuide) { HowToUseGuide() }
     }
 
     private func clearAll() {
@@ -110,12 +89,9 @@ struct StatsRow: View {
 
     var body: some View {
         HStack {
-            Label(label, systemImage: icon)
-                .foregroundStyle(color)
+            Label(label, systemImage: icon).foregroundStyle(color)
             Spacer()
-            Text(value)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
+            Text(value).foregroundStyle(.secondary).monospacedDigit()
         }
     }
 }
@@ -131,41 +107,33 @@ struct HowToUseGuide: View {
                         Text("Export your developer certificate from Keychain Access on Mac as a .p12 file with a password.")
                             .font(.subheadline)
                         Text("Optionally include a .mobileprovision file for provisioning.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.subheadline).foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
                 }
-
                 Section("Step 2: Import IPAs") {
-                    Text("Import IPA files you want to sign. These can be apps downloaded from any source.")
-                        .font(.subheadline)
-                        .padding(.vertical, 4)
+                    Text("Import IPA files you want to sign.")
+                        .font(.subheadline).padding(.vertical, 4)
                 }
-
                 Section("Step 3: Sign Apps") {
-                    Text("Go to an imported IPA, tap Sign, select your certificate, and tap Sign App. Signet will re-sign the IPA with your certificate.")
-                        .font(.subheadline)
-                        .padding(.vertical, 4)
+                    Text("Go to an imported IPA, tap Sign, select your certificate, and tap Sign App.")
+                        .font(.subheadline).padding(.vertical, 4)
                 }
-
                 Section("Step 4: Install") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("After signing completes, tap Install to start a local server.")
+                        Text("After signing, tap Install to start the local server.")
                             .font(.subheadline)
-                        Text("Tap \"Install on This Device\" — Safari will show an install prompt. Accept it.")
+                        Text("Tap \"Install on This Device\" or scan the QR code from another device on the same Wi-Fi.")
                             .font(.subheadline)
                         Text("Trust the developer certificate in Settings → General → VPN & Device Management.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.subheadline).foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
                 }
-
                 Section("Requirements") {
                     Label("iOS 16.0 or later", systemImage: "iphone")
                     Label("Valid developer certificate", systemImage: "lock.shield")
-                    Label("HTTPS required for OTA install on remote servers", systemImage: "lock")
+                    Label("Same Wi-Fi for QR code installs", systemImage: "wifi")
                 }
             }
             .listStyle(.insetGrouped)
@@ -173,8 +141,7 @@ struct HowToUseGuide: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .fontWeight(.semibold)
+                    Button("Done") { dismiss() }.fontWeight(.semibold)
                 }
             }
         }

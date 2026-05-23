@@ -87,7 +87,7 @@ class CertificateService {
 
         let name = SecCertificateCopySubjectSummary(cert) as String? ?? "Unknown"
 
-        guard let certData = SecCertificateCopyData(cert) as Data?,
+        guard let _ = SecCertificateCopyData(cert) as Data?,
               let certDict = SecCertificateCopyValues(cert, nil, nil) as? [String: Any]
         else {
             return (name: name, teamName: "Unknown", teamID: "Unknown",
@@ -96,28 +96,13 @@ class CertificateService {
 
         var teamName = "Unknown"
         var teamID = "Unknown"
-        var expiryDate = Date().addingTimeInterval(365 * 24 * 3600)
-        var creationDate = Date()
+        let expiryDate = Date().addingTimeInterval(365 * 24 * 3600)
+        let creationDate = Date()
         var serialNumber = "Unknown"
-
-        if let subjectAlt = certDict["2.5.29.17"] as? [String: Any],
-           let values = subjectAlt["value"] as? [[String: Any]] {
-            for val in values {
-                if let label = val["label"] as? String,
-                   let content = val["value"] as? String {
-                    if label.contains("UID") { teamID = content }
-                    if label.contains("O") && !label.contains("CN") { teamName = content }
-                }
-            }
-        }
 
         if let serialObj = certDict[kSecOIDSerialNumber as String] as? [String: Any],
            let serial = serialObj["value"] as? String {
             serialNumber = serial
-        }
-
-        if let validityDict = certDict["2.5.29.32"] as? [String: Any] {
-            _ = validityDict
         }
 
         let subjectDict = SecCertificateCopyValues(cert, [kSecOIDX509V1SubjectName as AnyObject] as CFArray, nil) as? [String: Any]

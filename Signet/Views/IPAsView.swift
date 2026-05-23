@@ -4,12 +4,12 @@ import UniformTypeIdentifiers
 struct IPAsView: View {
     @EnvironmentObject var store: AppStore
     @State private var showImport = false
-    @State private var showSigningSheet = false
-    @State private var selectedIPA: IPAFile? = nil
-    @State private var ipaToSign: IPAFile? = nil
     @State private var isImporting = false
+    @State private var selectedIPA: IPAFile? = nil
     @State private var errorMessage: String? = nil
     @State private var showError = false
+    @State private var showSigningSheet = false
+    @State private var ipaToSign: IPAFile? = nil
 
     var body: some View {
         NavigationStack {
@@ -18,7 +18,7 @@ struct IPAsView: View {
                     EmptyStateView(
                         systemImage: "square.stack.3d.up",
                         title: "No Apps",
-                        message: "Import an IPA file to get started.",
+                        message: "Import IPA files to sign and install.",
                         action: { showImport = true },
                         actionLabel: "Import IPA"
                     )
@@ -28,6 +28,13 @@ struct IPAsView: View {
                             IPARow(ipa: ipa)
                                 .contentShape(Rectangle())
                                 .onTapGesture { selectedIPA = ipa }
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button(role: .destructive) {
+                                        store.removeIPA(ipa)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                                 .swipeActions(edge: .leading) {
                                     Button {
                                         ipaToSign = ipa
@@ -37,16 +44,22 @@ struct IPAsView: View {
                                     }
                                     .tint(.blue)
                                 }
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button(role: .destructive) {
-                                        store.removeIPA(ipa)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
                         }
                     }
                     .listStyle(.insetGrouped)
+                    .overlay {
+                        if isImporting {
+                            ZStack {
+                                Color.black.opacity(0.3).ignoresSafeArea()
+                                VStack(spacing: 12) {
+                                    ProgressView().tint(.white).scaleEffect(1.5)
+                                    Text("Importing…").foregroundStyle(.white).font(.subheadline)
+                                }
+                                .padding(24)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                            }
+                        }
+                    }
                 }
             }
             .background(Color(.systemGroupedBackground))
@@ -54,15 +67,8 @@ struct IPAsView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    if isImporting {
-                        ProgressView()
-                    } else {
-                        Button {
-                            showImport = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .fontWeight(.semibold)
-                        }
+                    Button { showImport = true } label: {
+                        Image(systemName: "plus").fontWeight(.semibold)
                     }
                 }
             }
@@ -71,17 +77,13 @@ struct IPAsView: View {
             isPresented: $showImport,
             allowedContentTypes: [UTType(filenameExtension: "ipa") ?? .data]
         ) { result in
-            if case .success(let url) = result {
-                importIPA(from: url)
-            }
+            if case .success(let url) = result { importIPA(from: url) }
         }
         .sheet(item: $selectedIPA) { ipa in
-            IPADetailView(ipa: ipa)
-                .environmentObject(store)
+            IPADetailView(ipa: ipa).environmentObject(store)
         }
         .sheet(isPresented: $showSigningSheet) {
-            SigningView(preselectedIPA: ipaToSign)
-                .environmentObject(store)
+            SigningView(preselectedIPA: ipaToSign).environmentObject(store)
         }
         .alert("Import Error", isPresented: $showError, presenting: errorMessage) { _ in
             Button("OK", role: .cancel) {}
@@ -122,43 +124,26 @@ struct IPARow: View {
                     .frame(width: 50, height: 50)
                 if let icon {
                     Image(uiImage: icon)
-                        .resizable()
-                        .scaledToFill()
+                        .resizable().scaledToFill()
                         .frame(width: 50, height: 50)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 } else {
                     Image(systemName: "app.fill")
-                        .font(.system(size: 24, weight: .light))
-                        .foregroundStyle(.quaternary)
+                        .font(.system(size: 24, weight: .light)).foregroundStyle(.quaternary)
                 }
             }
-
             VStack(alignment: .leading, spacing: 3) {
-                Text(ipa.name)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                Text(ipa.bundleID)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Text(ipa.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                Text(ipa.bundleID).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 HStack(spacing: 6) {
-                    Text("v\(ipa.version) (\(ipa.buildNumber))")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    Text("·")
-                        .font(.caption2)
-                        .foregroundStyle(.quaternary)
-                    Text(ipa.fileSizeFormatted)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                    Text("v\(ipa.version) (\(ipa.buildNumber))").font(.caption2).foregroundStyle(.tertiary)
+                    Text("·").font(.caption2).foregroundStyle(.quaternary)
+                    Text(ipa.fileSizeFormatted).font(.caption2).foregroundStyle(.tertiary)
                 }
             }
-
             Spacer()
-
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiaryLabel)
+                .font(.caption.weight(.semibold)).foregroundStyle(.tertiaryLabel)
         }
         .padding(.vertical, 4)
         .onAppear { icon = IPAService.shared.loadIcon(for: ipa) }
@@ -181,25 +166,19 @@ struct IPADetailView: View {
                         VStack(spacing: 12) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .fill(Color(.systemGray5))
-                                    .frame(width: 80, height: 80)
+                                    .fill(Color(.systemGray5)).frame(width: 80, height: 80)
                                 if let icon {
                                     Image(uiImage: icon)
-                                        .resizable()
-                                        .scaledToFill()
+                                        .resizable().scaledToFill()
                                         .frame(width: 80, height: 80)
                                         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                                 } else {
                                     Image(systemName: "app.fill")
-                                        .font(.system(size: 36, weight: .light))
-                                        .foregroundStyle(.quaternary)
+                                        .font(.system(size: 36, weight: .light)).foregroundStyle(.quaternary)
                                 }
                             }
-                            Text(ipa.name)
-                                .font(.title3.weight(.semibold))
-                            Text("v\(ipa.version) (\(ipa.buildNumber))")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                            Text(ipa.name).font(.title3.weight(.semibold))
+                            Text("v\(ipa.version) (\(ipa.buildNumber))").font(.subheadline).foregroundStyle(.secondary)
                         }
                         Spacer()
                     }
@@ -216,13 +195,10 @@ struct IPADetailView: View {
                 }
 
                 Section {
-                    Button {
-                        showSigningSheet = true
-                    } label: {
+                    Button { showSigningSheet = true } label: {
                         HStack {
                             Spacer()
-                            Label("Sign This App", systemImage: "signature")
-                                .font(.subheadline.weight(.semibold))
+                            Label("Sign This App", systemImage: "signature").font(.subheadline.weight(.semibold))
                             Spacer()
                         }
                     }
@@ -234,8 +210,7 @@ struct IPADetailView: View {
                     } label: {
                         HStack {
                             Spacer()
-                            Label("Delete IPA", systemImage: "trash")
-                                .font(.subheadline.weight(.semibold))
+                            Label("Delete IPA", systemImage: "trash").font(.subheadline.weight(.semibold))
                             Spacer()
                         }
                     }
@@ -246,15 +221,13 @@ struct IPADetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .fontWeight(.semibold)
+                    Button("Done") { dismiss() }.fontWeight(.semibold)
                 }
             }
             .onAppear { icon = IPAService.shared.loadIcon(for: ipa) }
         }
         .sheet(isPresented: $showSigningSheet) {
-            SigningView(preselectedIPA: ipa)
-                .environmentObject(store)
+            SigningView(preselectedIPA: ipa).environmentObject(store)
         }
     }
 }

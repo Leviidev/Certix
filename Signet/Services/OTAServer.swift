@@ -12,7 +12,6 @@ class OTAServer: ObservableObject {
     private var listener: NWListener?
     private var servedIPA: URL?
     private var servedJobID: UUID?
-    private var manifestCache: String = ""
 
     func start(for job: SigningJob, store: AppStore) throws {
         guard let outputFile = job.outputFileName else {
@@ -22,8 +21,7 @@ class OTAServer: ObservableObject {
         servedIPA = store.signingDirectory.appendingPathComponent(outputFile)
         servedJobID = job.id
 
-        let ipaForManifest = job.ipaID
-        guard let ipa = store.ipas.first(where: { $0.id == ipaForManifest }) else {
+        guard let ipa = store.ipas.first(where: { $0.id == job.ipaID }) else {
             throw SignetError.serverError("IPA not found")
         }
 
@@ -60,12 +58,9 @@ class OTAServer: ObservableObject {
     }
 
     func installURL(for job: SigningJob, store: AppStore) -> String {
-        guard let outputFile = job.outputFileName,
-              let ipa = store.ipas.first(where: { $0.id == job.ipaID }) else {
-            return ""
-        }
-        let baseURL = "http://localhost:\(port)"
-        let manifestURL = "\(baseURL)/manifest/\(job.id.uuidString)"
+        guard let ipa = store.ipas.first(where: { $0.id == job.ipaID }) else { return "" }
+        let manifestURL = "http://localhost:\(port)/manifest/\(job.id.uuidString)"
+        _ = ipa
         return "itms-services://?action=download-manifest&url=\(manifestURL.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
     }
 
@@ -79,7 +74,7 @@ class OTAServer: ObservableObject {
     }
 
     private func receiveRequest(on connection: NWConnection, ipa: IPAFile) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, _, error in
             guard let self, let data, let request = String(data: data, encoding: .utf8) else {
                 connection.cancel()
                 return

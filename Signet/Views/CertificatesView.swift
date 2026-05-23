@@ -45,35 +45,23 @@ struct CertificatesView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showImport = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .fontWeight(.semibold)
+                    Button { showImport = true } label: {
+                        Image(systemName: "plus").fontWeight(.semibold)
                     }
                 }
             }
         }
         .sheet(isPresented: $showImport) {
-            ImportCertificateSheet()
-                .environmentObject(store)
+            ImportCertificateSheet().environmentObject(store)
         }
         .sheet(item: $selectedCert) { cert in
-            CertificateDetailView(cert: cert)
-                .environmentObject(store)
+            CertificateDetailView(cert: cert).environmentObject(store)
         }
         .alert("Delete Certificate?", isPresented: $showDeleteAlert, presenting: certToDelete) { cert in
-            Button("Delete", role: .destructive) {
-                store.removeCertificate(cert)
-            }
+            Button("Delete", role: .destructive) { store.removeCertificate(cert) }
             Button("Cancel", role: .cancel) {}
         } message: { cert in
             Text(""\(cert.name)" will be permanently removed.")
-        }
-        .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
-            Button("OK", role: .cancel) {}
-        } message: { msg in
-            Text(msg)
         }
     }
 }
@@ -91,22 +79,13 @@ struct CertificateRow: View {
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(.white)
             }
-
             VStack(alignment: .leading, spacing: 3) {
-                Text(cert.name)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                Text(cert.teamName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Text(cert.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                Text(cert.teamName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 Text("Expires \(cert.expiryDate.formatted(.dateTime.month().day().year()))")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.caption2).foregroundStyle(.tertiary)
             }
-
             Spacer()
-
             CertExpiryBadge(cert: cert)
         }
         .padding(.vertical, 2)
@@ -134,63 +113,43 @@ struct ImportCertificateSheet: View {
                     if let url = p12URL {
                         HStack {
                             Label(url.lastPathComponent, systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                                .lineLimit(1)
+                                .foregroundStyle(.green).lineLimit(1)
                             Spacer()
-                            Button("Change") { showP12Picker = true }
-                                .font(.caption)
+                            Button("Change") { showP12Picker = true }.font(.caption)
                         }
                     } else {
-                        Button {
-                            showP12Picker = true
-                        } label: {
+                        Button { showP12Picker = true } label: {
                             Label("Select .p12 File", systemImage: "doc.badge.plus")
                         }
                     }
-                } header: {
-                    Text("Certificate (.p12)")
-                } footer: {
-                    Text("Your signing certificate exported from Keychain.")
-                }
+                } header: { Text("Certificate (.p12)") }
+                  footer: { Text("Your signing certificate exported from Keychain.") }
 
-                Section {
+                Section("Password") {
                     SecureField("Certificate Password", text: $password)
                         .textContentType(.password)
-                } header: {
-                    Text("Password")
                 }
 
                 Section {
                     if let url = profileURL {
                         HStack {
                             Label(url.lastPathComponent, systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                                .lineLimit(1)
+                                .foregroundStyle(.green).lineLimit(1)
                             Spacer()
-                            Button("Change") { showProfilePicker = true }
-                                .font(.caption)
-                            Button("Remove") { profileURL = nil }
-                                .font(.caption)
-                                .foregroundStyle(.red)
+                            Button("Change") { showProfilePicker = true }.font(.caption)
                         }
                     } else {
-                        Button {
-                            showProfilePicker = true
-                        } label: {
-                            Label("Select .mobileprovision (Optional)", systemImage: "doc.badge.plus")
+                        Button { showProfilePicker = true } label: {
+                            Label("Select .mobileprovision (optional)", systemImage: "doc.badge.plus")
                         }
                     }
-                } header: {
-                    Text("Provisioning Profile")
-                } footer: {
-                    Text("Required for non-developer builds.")
-                }
+                } header: { Text("Provisioning Profile") }
+                  footer: { Text("Required for installing on non-jailbroken devices.") }
 
-                if let error = errorMessage {
+                if let errorMessage {
                     Section {
-                        Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red).font(.caption)
                     }
                 }
             }
@@ -198,47 +157,37 @@ struct ImportCertificateSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { dismiss() }.disabled(isImporting)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if isImporting {
-                        ProgressView()
+                        ProgressView().tint(.blue)
                     } else {
-                        Button("Import") {
-                            performImport()
-                        }
-                        .disabled(!canImport)
-                        .fontWeight(.semibold)
+                        Button("Import") { importCertificate() }
+                            .fontWeight(.semibold)
+                            .disabled(!canImport)
                     }
                 }
             }
-            .fileImporter(
-                isPresented: $showP12Picker,
-                allowedContentTypes: [UTType(filenameExtension: "p12") ?? .data]
-            ) { result in
-                if case .success(let url) = result { p12URL = url }
-            }
-            .fileImporter(
-                isPresented: $showProfilePicker,
-                allowedContentTypes: [UTType(filenameExtension: "mobileprovision") ?? .data]
-            ) { result in
-                if case .success(let url) = result { profileURL = url }
-            }
+        }
+        .fileImporter(isPresented: $showP12Picker,
+                      allowedContentTypes: [UTType(filenameExtension: "p12") ?? .data]) { result in
+            if case .success(let url) = result { p12URL = url }
+        }
+        .fileImporter(isPresented: $showProfilePicker,
+                      allowedContentTypes: [UTType(filenameExtension: "mobileprovision") ?? .data]) { result in
+            if case .success(let url) = result { profileURL = url }
         }
     }
 
-    private func performImport() {
-        guard let p12 = p12URL else { return }
+    private func importCertificate() {
+        guard let p12URL else { return }
         isImporting = true
         errorMessage = nil
-
         Task {
             do {
                 let cert = try await CertificateService.shared.importCertificate(
-                    p12URL: p12,
-                    password: password,
-                    profileURL: profileURL,
-                    store: store
+                    p12URL: p12URL, password: password, profileURL: profileURL, store: store
                 )
                 await MainActor.run {
                     store.addCertificate(cert)
@@ -262,29 +211,52 @@ struct CertificateDetailView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Identity") {
-                    DetailRow(label: "Name", value: cert.name)
-                    DetailRow(label: "Team", value: cert.teamName)
-                    DetailRow(label: "Team ID", value: cert.teamID)
-                    DetailRow(label: "Serial", value: cert.serialNumber)
-                }
-                Section("Validity") {
+                Section {
                     HStack {
-                        Text("Status")
-                            .foregroundStyle(.secondary)
                         Spacer()
-                        CertExpiryBadge(cert: cert)
+                        VStack(spacing: 10) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(cert.expiryStatus == .valid ? Color.blue : .orange)
+                                    .frame(width: 64, height: 64)
+                                Image(systemName: "lock.shield.fill")
+                                    .font(.system(size: 30, weight: .medium))
+                                    .foregroundStyle(.white)
+                            }
+                            Text(cert.name).font(.title3.weight(.bold))
+                            CertExpiryBadge(cert: cert)
+                        }
+                        Spacer()
                     }
-                    DetailRow(label: "Created", value: cert.creationDate.formatted(date: .abbreviated, time: .omitted))
-                    DetailRow(label: "Expires", value: cert.expiryDate.formatted(date: .abbreviated, time: .omitted))
-                    if !cert.isExpired {
-                        DetailRow(label: "Days Left", value: "\(cert.daysUntilExpiry) days")
-                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 0))
                 }
+
+                Section("Certificate Info") {
+                    DetailRow(label: "Team Name", value: cert.teamName)
+                    DetailRow(label: "Team ID", value: cert.teamID)
+                    DetailRow(label: "Serial Number", value: cert.serialNumber)
+                    DetailRow(label: "Expires", value: cert.expiryDate.formatted(date: .abbreviated, time: .omitted))
+                    DetailRow(label: "Days Remaining", value: cert.isExpired ? "Expired" : "\(cert.daysUntilExpiry) days")
+                }
+
                 Section("Files") {
-                    DetailRow(label: "Certificate", value: cert.p12FileName)
+                    DetailRow(label: "P12 File", value: cert.p12FileName)
                     if let profile = cert.profileFileName {
                         DetailRow(label: "Profile", value: profile)
+                    }
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        store.removeCertificate(cert)
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Label("Delete Certificate", systemImage: "trash").font(.subheadline.weight(.semibold))
+                            Spacer()
+                        }
                     }
                 }
             }
@@ -293,8 +265,7 @@ struct CertificateDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .fontWeight(.semibold)
+                    Button("Done") { dismiss() }.fontWeight(.semibold)
                 }
             }
         }
@@ -307,13 +278,9 @@ struct DetailRow: View {
 
     var body: some View {
         HStack {
-            Text(label)
-                .foregroundStyle(.secondary)
+            Text(label).foregroundStyle(.secondary)
             Spacer()
-            Text(value)
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.trailing)
-                .lineLimit(2)
+            Text(value).multilineTextAlignment(.trailing).foregroundStyle(.primary)
         }
         .font(.subheadline)
     }

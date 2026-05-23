@@ -1,6 +1,6 @@
 excluded:
-  - Signet/Signet.xcodeproj
-  - Signet/Signet/ZipCompression.c
+  - Signet.xcodeproj
+  - Signet/ZipCompression.c
 
 disabled_rules:
   - trailing_whitespace
