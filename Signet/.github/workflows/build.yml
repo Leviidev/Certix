@@ -1,0 +1,153 @@
+name: Build Signet IPA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sign_build:
+        description: 'Sign the IPA with provided certificate secrets'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  build:
+    name: Build Signet IPA
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 17
+        run: |
+          # Use Xcode 17 for iOS 26 SDK support
+          XCODE_PATH=$(ls /Applications | grep "Xcode_17" | sort -V | tail -1)
+          if [ -n "$XCODE_PATH" ]; then
+            sudo xcode-select -s "/Applications/$XCODE_PATH"
+          else
+            # Fallback to latest available
+            sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          fi
+          echo "Xcode path: $(xcode-select -p)"
+          xcodebuild -version
+
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-deriveddata-${{ hashFiles('Signet/**/*.swift', 'Signet/**/*.c') }}
+          restore-keys: |
+            ${{ runner.os }}-deriveddata-
+
+      - name: Import Certificate (signed builds only)
+        if: ${{ github.event.inputs.sign_build == 'true' || (github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_CERT == 'true') }}
+        env:
+          P12_BASE64: ${{ secrets.P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          if [ -z "$P12_BASE64" ]; then
+            echo "::notice::No P12_BASE64 secret found — building unsigned."
+            exit 0
+          fi
+          echo "$P12_BASE64" | base64 --decode > /tmp/certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import /tmp/certificate.p12 -k build.keychain \
+            -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/xcodebuild
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          echo "✅ Certificate imported"
+          rm /tmp/certificate.p12
+
+      - name: Build Archive (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Signet/Signet.xcodeproj \
+            -scheme Signet \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/Signet.xcarchive" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            DEVELOPMENT_TEAM="" \
+            PRODUCT_BUNDLE_IDENTIFIER=com.signet.app \
+            2>&1 | tail -100
+
+      - name: Package Unsigned IPA
+        run: |
+          ARCHIVE="$RUNNER_TEMP/Signet.xcarchive"
+          APPS="$ARCHIVE/Products/Applications"
+
+          if [ ! -d "$APPS" ]; then
+            echo "::error::Archive apps directory not found at $APPS"
+            find "$RUNNER_TEMP" -name "*.app" 2>/dev/null | head -5 || true
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -r "$APPS/Signet.app" "$RUNNER_TEMP/Payload/"
+
+          cd "$RUNNER_TEMP"
+          IPA_NAME="Signet-$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD 2>/dev/null || echo 'local').ipa"
+          zip -r "$IPA_NAME" Payload/
+          ls -lh "$IPA_NAME"
+          echo "IPA_PATH=$RUNNER_TEMP/$IPA_NAME" >> $GITHUB_ENV
+          echo "IPA_NAME=$IPA_NAME" >> $GITHUB_ENV
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Signet-IPA-${{ github.run_number }}
+          path: ${{ env.IPA_PATH }}
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Job Summary
+        if: always()
+        run: |
+          {
+            echo "## 📦 Signet Build #${{ github.run_number }}"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Branch | \`${{ github.ref_name }}\` |"
+            echo "| Commit | \`$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD 2>/dev/null || echo 'unknown')\` |"
+            echo "| Xcode | $(xcodebuild -version 2>/dev/null | head -1 || echo 'unknown') |"
+            if [ -f "$IPA_PATH" ]; then
+              IPA_SIZE=$(du -sh "$IPA_PATH" | cut -f1)
+              echo "| IPA | \`$IPA_NAME\` ($IPA_SIZE) |"
+              echo "| Status | ✅ Success |"
+            else
+              echo "| Status | ❌ Failed |"
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+
+  lint:
+    name: SwiftLint
+    runs-on: macos-15
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run SwiftLint
+        run: |
+          if ! command -v swiftlint &>/dev/null; then
+            brew install swiftlint 2>/dev/null || true
+          fi
+          swiftlint lint \
+            --path Signet/Signet \
+            --reporter github-actions-logging \
+            --config .swiftlint.yml 2>/dev/null \
+          || swiftlint lint --path Signet/Signet --reporter github-actions-logging \
+          || true

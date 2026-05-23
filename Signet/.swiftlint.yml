@@ -1,0 +1,22 @@
+excluded:
+  - Signet/Signet.xcodeproj
+  - Signet/Signet/ZipCompression.c
+
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+  - file_length
+  - type_body_length
+  - function_body_length
+  - cyclomatic_complexity
+  - nesting
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - explicit_init
+  - first_where
+  - force_unwrapping
+
+force_unwrapping:
+  severity: warning
